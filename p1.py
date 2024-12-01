@@ -34,7 +34,7 @@ try:
         producer.produce('vvd_building_sensors', value=json.dumps(data).encode('utf-8'), callback=delivery_report)
         producer.poll(1)  # Очікування подій протягом 1 секунди
         print(f"Sent data: {data}")
-        time.sleep(5)  # Відправлення даних кожні 5 секунд
+        time.sleep(10)  # Відправлення даних кожні 5 секунд
 except KeyboardInterrupt:
     print("Stopped by user")
 finally:

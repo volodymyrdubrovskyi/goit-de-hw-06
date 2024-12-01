@@ -8,10 +8,10 @@ spark = SparkSession.builder \
     .appName("Kafka Spark Streaming") \
     .config("spark.executor.memory", "12g") \
     .config("spark.driver.memory", "8g") \
-    .config("spark.executor.cores", "1") \
-    .config("spark.driver.cores", "1") \
+    .config("spark.executor.cores", "6") \
+    .config("spark.driver.cores", "2") \
     .config("spark.task.cpus", "1") \
-    .config("spark.default.parallelism", "1") \
+    .config("spark.default.parallelism", "2") \
     .config("spark.dynamicAllocation.enabled", "true") \
     .config("spark.dynamicAllocation.minExecutors", "4") \
     .config("spark.dynamicAllocation.maxExecutors", "40") \
@@ -26,16 +26,12 @@ spark = SparkSession.builder \
     .config("spark.driver.extraJavaOptions", "-Dlog4j.configuration=file:log4j.properties") \
     .getOrCreate()
     
-# # Структура даних алерта
-schema_alert = StructType([
-    StructField("window", StructType([
-        StructField("start", TimestampType()),
-        StructField("end", TimestampType())
-    ])),
-    StructField("t_avg", DoubleType()),
-    StructField("h_avg", DoubleType()),
-    StructField("code", StringType()),
-    StructField("message", StringType())
+# Структура даних сенсора
+schema = StructType([
+    StructField("sensor_id", StringType()),
+    StructField("timestamp", TimestampType()),
+    StructField("temperature", DoubleType()),
+    StructField("humidity", DoubleType())
 ])
 
 df = spark \
@@ -46,22 +42,22 @@ df = spark \
     .option("kafka.sasl.mechanism", "PLAIN") \
     .option("kafka.sasl.jaas.config",
             'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="VawEzo1ikLtrA8Ug8THa";') \
-    .option("subscribe", "vvd_building_sensors_alerts") \
+    .option("subscribe", "vvd_building_sensors") \
     .option("startingOffsets", "earliest") \
-    .option("maxOffsetsPerTrigger", "50") \
+    .option("maxOffsetsPerTrigger", "5") \
     .load()
     
 # Декодування та парсинг даних
 df = df.selectExpr("CAST(value AS STRING) as json_data") \
-    .select(from_json(col("json_data"), schema_alert).alias("data")) \
+    .select(from_json(col("json_data"), schema).alias("data")) \
     .select("data.*")
     
 def print_to_console_1(df, epoch_id): 
     # Сортування даних всередині функції foreachBatch перед виведенням 
-    sorted_df = df.orderBy(col("window").asc())
+    sorted_df = df.orderBy(col("timestamp").asc())
     total_count = sorted_df.count() 
     print(f"Total number of rows: {total_count}")
-    sorted_df.show(truncate=False, n=20)
+    sorted_df.show(truncate=False, n=30)
 
 # Виведення результатів на консоль
 query1 = df.writeStream \
