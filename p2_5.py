@@ -3,7 +3,8 @@ import pandas as pd
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, window, avg, round
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType
-# from configs import kafka_config
+from configs import kafka_config
+from confluent_kafka import Producer
 
 # Створення сесії Spark
 spark = SparkSession.builder \
@@ -89,10 +90,6 @@ alerts_filtered = alerts_crossed.filter(
     ( (alerts_crossed['temperature_max'] == -999) | (alerts_crossed['t_avg'] <= alerts_crossed['temperature_max']) ) 
 )
 
-# print("==^=^==")
-# print(alerts_filtered)
-# print("==^=^==")
-
 # Вибір необхідних стовпчиків з alerts_filtered 
 alerts_filtered_columns = alerts_filtered.select( 
     col("window"), 
@@ -114,5 +111,28 @@ query2 = alerts_filtered_columns.writeStream \
     .foreachBatch(print_to_console_2) \
     .start()
 
+# Створення продюсера Kafka 
+producer = Producer(kafka_config)
+
+# Функція для відправки даних у Kafka 
+def send_to_kafka(df, epoch_id): 
+    df = df.selectExpr("to_json(struct(*)) AS value") 
+    try:
+        for row in df.collect(): 
+            producer.produce("vvd_building_sensors_alerts", value=row["value"]) 
+        print("data sent sucsessfully...")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        producer.flush()
+
+# Запис даних в топік vvd_building_sensors_alerts 
+query3 = alerts_filtered_columns.writeStream \
+    .trigger(availableNow=True) \
+    .outputMode("append") \
+    .foreachBatch(send_to_kafka) \
+    .start()
+
 query1.awaitTermination()
 query2.awaitTermination()
+query3.awaitTermination()

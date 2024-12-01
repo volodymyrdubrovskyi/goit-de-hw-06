@@ -16,6 +16,7 @@ consumer.subscribe([topic])
 
 # Функція для обробки повідомлень
 def consume_messages():
+    i = 1
     try:
         while True:
             msg = consumer.poll(timeout=1.0)
@@ -28,7 +29,8 @@ def consume_messages():
                     continue
                 else:
                     raise KafkaException(msg.error())
-            print(f"Received message: {msg.value().decode('utf-8')}")
+            print(f"{i}: Received message: {msg.value().decode('utf-8')}")
+            i = i + 1
     except KeyboardInterrupt:
         print("Stopping consumer...")
     finally:
